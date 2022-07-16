@@ -5,36 +5,16 @@ import sqlite3
 from fastapi import FastAPI, HTTPException
 import pandas as pd
 from fastapi.responses import FileResponse
+import sql_statements
 
 app = FastAPI()
 
 con = sqlite3.connect('car_facts.db')
 
 c = con.cursor()
-create_sql_table_code = """CREATE TABLE IF NOT EXISTS carFacts(
-                        carFactsID integer PRIMARY KEY,
-                        VIN text NOT NULL,
-                        Make text,
-                        Model text,
-                        ModelYear text,
-                        BodyClass text,
-                        CreatedDate text);"""
 
-create_sql_index_code = """CREATE UNIQUE INDEX IF NOT EXISTS idx_VIN ON carFacts(VIN);"""
-
-insert_sql = """INSERT OR IGNORE INTO carFacts(VIN, Make, Model, ModelYear, BodyClass, CreatedDate) VALUES (?, ?, ?,?,
-?, strftime('%m-%d-%Y %H:%M:%S', 'now'));"""
-
-remove_sql = """DELETE FROM carFacts WHERE VIN = ?;"""
-
-check_vin_sql = """SELECT carFactsID FROM carFacts WHERE VIN = ?;"""
-
-get_earliest_created_date_sql = """SELECT carFactsID FROM carFacts WHERE VIN = ? ORDER BY CreatedDate ASC LIMIT 1;"""
-
-select_sql = """SELECT VIN, Make, Model, ModelYear, BodyClass, CreatedDate 'True' FROM carFacts WHERE VIN = ?;"""
-
-c.execute(create_sql_table_code)
-c.execute(create_sql_index_code)
+c.execute(sql_statements.create_table)
+c.execute(sql_statements.create_index)
 
 
 
@@ -56,7 +36,7 @@ def check_db_for_VIN(vin: str):
     vin = clean_VIN(vin)
     try:
         # counting how many data entries there are for a specific vin
-        icount = len(c.execute(check_vin_sql, (vin,)).fetchall())
+        icount = len(c.execute(sql_statements.check_vin, (vin,)).fetchall())
 
         if icount == 1:
             return True
@@ -66,7 +46,7 @@ def check_db_for_VIN(vin: str):
         # if there's more than one data entry for a certain VIN, something has gone wrong, and we need to
         # clean the database. We keep the earliest entry, but delete the rest.
         else:
-            first_insert = c.execute(get_earliest_created_date_sql, (vin,))
+            first_insert = c.execute(sql_statements.get_earliest_created_date, (vin,))
             c.execute("""DELETE FROM carFacts WHERE VIN = ? AND carFactsID <> ?;""", (vin, first_insert))
             con.commit()
             num_of_deleted_rows = c.rowcount
@@ -81,7 +61,7 @@ def check_db_for_VIN(vin: str):
 def insert_into_db(cf: dict):
     # inserting the data into the database if it is not already present
     try:
-        c.execute(insert_sql, (cf['VIN'], cf['Make'], cf['Model'], cf['Model Year'], cf['Body Class']))
+        c.execute(sql_statements.insert, (cf['VIN'], cf['Make'], cf['Model'], cf['Model Year'], cf['Body Class']))
         con.commit()
 
         num_of_inserted_records = c.rowcount
@@ -121,7 +101,7 @@ async def remove_VIN(lookup_VIN: str):
 
     try:
         # try to delete any data with matching VIN
-        c.execute(remove_sql, (lookup_VIN,))
+        c.execute(sql_statements.remove, (lookup_VIN,))
         con.commit()
         num_of_deleted_rows = c.rowcount
 
@@ -151,7 +131,7 @@ async def call_VPIC_API_Insert_into_db(lookup_VIN: str):
     if cached_results:
 
         # VIN in the database, so we query the database and add the output to our cf dictionary
-        all_data = c.execute(select_sql, (lookup_VIN,)).fetchall()
+        all_data = c.execute(sql_statements.select, (lookup_VIN,)).fetchall()
         all_data = all_data[0]
         cf = {'VIN': all_data[0], 'Make': all_data[1], 'Model': all_data[2],
               'Model Year': all_data[3], 'Body Class':
