@@ -37,6 +37,7 @@ c.execute(create_sql_table_code)
 c.execute(create_sql_index_code)
 
 
+
 def clean_VIN(vin: str):
     # removing any leading/trailing spaces from the VIN
     vin = vin.strip()
