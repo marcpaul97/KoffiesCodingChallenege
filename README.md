@@ -5,7 +5,7 @@ Solving the coding challenge at: https://github.com/KoffieLabs/backend-challenge
  
 ## Main:
 
-Main.py is where the bulk of the code is. Here we have the functions clean_VIN, check_db_for_VIN, insert_into_db, export_all_data, remove_VIN, and  call_VPIC_API_Insert_into_db. 
+Main is where the bulk of the code is. Here we have the functions clean_VIN, check_db_for_VIN, insert_into_db, export_all_data, remove_VIN, and  call_VPIC_API_Insert_into_db. 
 
 - **clean_VIN:** Deletes any leading/trailing whitespaces from the inputted vin. Next it makes sure the vin contains only alphanumeric characters and is exactly 17 characters long, since these were the requirements for the vin. I decided I wouldn't count a white space, as the user most likely did not intend to add a space before or after the vin.
 
