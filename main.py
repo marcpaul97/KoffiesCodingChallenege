@@ -2,7 +2,7 @@ import json
 import re
 import requests
 import sqlite3
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status, Response
 import pandas as pd
 from fastapi.responses import FileResponse
 import sql_statements
@@ -15,7 +15,6 @@ c = con.cursor()
 
 c.execute(sql_statements.create_table)
 c.execute(sql_statements.create_index)
-
 
 
 def clean_VIN(vin: str):
@@ -58,7 +57,7 @@ def check_db_for_VIN(vin: str):
         raise HTTPException(status_code=400, detail="Failed to check the database for records because of the error")
 
 
-def insert_into_db(cf: dict):
+def insert_into_db(cf: dict, response: Response):
     # inserting the data into the database if it is not already present
     try:
         c.execute(sql_statements.insert, (cf['VIN'], cf['Make'], cf['Model'], cf['Model Year'], cf['Body Class']))
@@ -69,16 +68,17 @@ def insert_into_db(cf: dict):
         # if there was more than 1 record inserted, then we had a successful insert
         if num_of_inserted_records > 0:
             print(num_of_inserted_records, "Record(s) have been successfully inserted to the table")
-
+            response.status_code = status.HTTP_201_CREATED
         # there were 0 records inserted, which means the data already exists in the database cache
         else:
             print("The same data has already been inserted into this database.")
+            response.status_code = status.HTTP_200_OK
     except sqlite3.Error as error:
         print(error)
         raise HTTPException(status_code=500, detail="Failed to insert the record(s) because of the error")
 
 
-@app.get("/export")
+@app.get("/export", status_code=status.HTTP_201_CREATED)
 async def export_all_data():
     try:
 
@@ -88,14 +88,14 @@ async def export_all_data():
         print('Creation of file was successful')
     except Exception as error:
         print(error)
-        raise HTTPException(status_code=418, detail="Unable to export all data because of the error")
+        raise HTTPException(status_code=418, detail="Unable to export all data because of error")
 
     # returning a downloadable file of everything that was in the database cache
     return FileResponse(path='car_facts.parquet', filename='car_facts.parquet', media_type='parquet')
 
 
-@app.get("/remove/{lookup_VIN}")
-async def remove_VIN(lookup_VIN: str):
+@app.get("/remove/{lookup_VIN}", status_code=200)
+async def remove_VIN(lookup_VIN: str, response: Response):
     cf = {'Cached Deleted': False}
     lookup_VIN = clean_VIN(lookup_VIN)
 
@@ -121,8 +121,8 @@ async def remove_VIN(lookup_VIN: str):
         raise HTTPException(status_code=400, detail="Failed to delete the record(s) because of the error")
 
 
-@app.get("/lookup/{lookup_VIN}")
-async def call_VPIC_API_Insert_into_db(lookup_VIN: str):
+@app.get("/lookup/{lookup_VIN}", status_code=status.HTTP_201_CREATED)
+async def call_VPIC_API_Insert_into_db(lookup_VIN: str, response: Response):
     lookup_VIN = clean_VIN(lookup_VIN)
 
     # checking if the VIN is already in the database
@@ -133,9 +133,10 @@ async def call_VPIC_API_Insert_into_db(lookup_VIN: str):
         # VIN in the database, so we query the database and add the output to our cf dictionary
         all_data = c.execute(sql_statements.select, (lookup_VIN,)).fetchall()
         all_data = all_data[0]
-        cf = {'VIN': all_data[0], 'Make': all_data[1], 'Model': all_data[2],
-              'Model Year': all_data[3], 'Body Class':
+        cf = {'VIN'                            : all_data[0], 'Make': all_data[1], 'Model': all_data[2],
+              'Model Year'                     : all_data[3], 'Body Class':
                   all_data[4], 'Cached Results': True}
+        response.status_code = status.HTTP_200_OK
         return cf.items()
     else:
 
@@ -158,18 +159,19 @@ async def call_VPIC_API_Insert_into_db(lookup_VIN: str):
             if len(data['ErrorCode']) > 0 and data['ErrorCode'] != "0":
 
                 err = data['ErrorCode']
+                response.status_code = status.HTTP_204_NO_CONTENT
                 raise HTTPException(status_code=400,
                                     detail="There was no response or an error returned by the API")
 
             else:
-                cf = {'VIN': lookup_VIN, 'Make': data['Make'], 'Model': data['Model'],
+                cf = {'VIN'       : lookup_VIN, 'Make': data['Make'], 'Model': data['Model'],
                       'Model Year': data['ModelYear'],
                       'Body Class': data['BodyClass'], 'Cached Results': False}
         except Exception as error:
             print(error)
             raise HTTPException(status_code=400, detail="There was no response or an error returned by the API")
 
-        insert_into_db(cf)
+        insert_into_db(cf, response)
         return cf.items()
 
 
