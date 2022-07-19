@@ -19,3 +19,7 @@ check_vin = """SELECT carFactsID FROM carFacts WHERE VIN = ?;"""
 get_earliest_created_date = """SELECT carFactsID FROM carFacts WHERE VIN = ? ORDER BY CreatedDate ASC LIMIT 1;"""
 
 select = """SELECT VIN, Make, Model, ModelYear, BodyClass, CreatedDate 'True' FROM carFacts WHERE VIN = ?;"""
+
+select_all = 'SELECT * FROM carFacts'
+
+clean_up_duplicates = """DELETE FROM carFacts WHERE VIN = ? AND carFactsID <> ?;"""

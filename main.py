@@ -46,7 +46,7 @@ def check_db_for_VIN(vin: str):
         # clean the database. We keep the earliest entry, but delete the rest.
         else:
             first_insert = c.execute(sql_statements.get_earliest_created_date, (vin,))
-            c.execute("""DELETE FROM carFacts WHERE VIN = ? AND carFactsID <> ?;""", (vin, first_insert))
+            c.execute(sql_statements.clean_up_duplicates, (vin, first_insert))
             con.commit()
             num_of_deleted_rows = c.rowcount
             print(icount, " Matching data entries in database, ", num_of_deleted_rows, " have been removed")
@@ -83,7 +83,7 @@ async def export_all_data():
     try:
 
         # querying all data and dumping it into a .parquet file utilizing pandas .to_parquet
-        df = pd.read_sql('SELECT * FROM carFacts', con)
+        df = pd.read_sql(sql_statements.select_all, con)
         df.to_parquet('car_facts.parquet')
         print('Creation of file was successful')
     except Exception as error:
