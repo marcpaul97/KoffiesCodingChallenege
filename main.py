@@ -1,15 +1,18 @@
 import json
+import os
 import re
 import requests
 import sqlite3
 from fastapi import FastAPI, HTTPException, status, Response
 import pandas as pd
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
+
 import sql_statements
 
 app = FastAPI()
 
-con = sqlite3.connect('car_facts.db')
+con = sqlite3.connect('car_facts.db', check_same_thread=False)
 
 c = con.cursor()
 
@@ -90,8 +93,11 @@ async def export_all_data():
         print(error)
         raise HTTPException(status_code=418, detail="Unable to export all data because of error")
 
+    downloadable_file = FileResponse(path='car_facts.parquet', filename='car_facts.parquet',
+                                     media_type='parquet', background=BackgroundTask(lambda: os.remove('car_facts'
+                                                                                                       '.parquet')))
     # returning a downloadable file of everything that was in the database cache
-    return FileResponse(path='car_facts.parquet', filename='car_facts.parquet', media_type='parquet')
+    return downloadable_file
 
 
 @app.get("/remove/{lookup_VIN}", status_code=200)
